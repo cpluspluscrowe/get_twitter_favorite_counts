@@ -13,7 +13,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC 
 #https://twitter.com/barkbox
 
-password = open("./password.org").read().split("\n")[0]
+login_password = open("./password.org").read().split("\n")[0]
 
 def login_to_twitter():
     def setupChromeDriver():
@@ -26,12 +26,12 @@ def login_to_twitter():
     def login(driver):
         url = "https://twitter.com/login"
         driver.get(url)
-        time.sleep(6)
+        time.sleep(3)
         username = driver.find_elements_by_name("session[username_or_email]")
         username[0].send_keys("cpluspluscrowe")
         time.sleep(2)
         password = driver.find_elements_by_name("session[password]")
-        password[0].send_keys(password)
+        password[0].send_keys(login_password)
         time.sleep(2)    
         submit = driver.find_element_by_xpath("//span[text()='Log in']")
         submit.click()
