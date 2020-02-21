@@ -1,100 +1,71 @@
 
 # Need to login in order to get favorite information
-
-goal_post_url = "https://twitter.com/saucony/status/1229450434000982022"
-chrome_driver_location = "/Users/ccrowe/github/extract_twitter_favorites/chromedriver"
-
+import time
 import os
 import sys
 from selenium import webdriver
 import time
 from selenium.webdriver.chrome.options import Options
-
-
-def setupChromeDriver():
-    # setup chrome driver
-    chrome_options = Options()
-#    chrome_options.add_argument("--headless")
-    driver = webdriver.Chrome(chrome_driver_location, chrome_options=chrome_options)
-    return driver
-
-driver = setupChromeDriver()
-
-
-
-# Now work on logging into Twitter
-url = "https://twitter.com/login"
-driver.get(url)
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC 
+#https://twitter.com/barkbox
 
-driver = webdriver.Chrome(executable_path = r'D:/Automation/chromedriver.exe')
-driver.get("https://twitter.com/login")
+password = open("./password.org").read().split("\n")[0]
 
-# To get UNO Access for gathering Twitter data
-
-username = driver.find_elements_by_name("session[username_or_email]")
-username[0].send_keys("cpluspluscrowe")
-
-password = driver.find_elements_by_name("session[password]")
-password[0].send_keys("rickroll")
-
-
-submit = driver.find_element_by_xpath("//span[text()='Log in']")
-submit.click()
-
+def login_to_twitter():
+    def setupChromeDriver():
+        chrome_options = Options()
+        # chrome_options.add_argument("--headless")
+        chrome_driver_location = "/Users/ccrowe/github/extract_twitter_favorites/chromedriver"
+        driver = webdriver.Chrome(chrome_driver_location, chrome_options=chrome_options)
+        return driver
+    driver = setupChromeDriver()
+    def login(driver):
+        url = "https://twitter.com/login"
+        driver.get(url)
+        time.sleep(6)
+        username = driver.find_elements_by_name("session[username_or_email]")
+        username[0].send_keys("cpluspluscrowe")
+        time.sleep(2)
+        password = driver.find_elements_by_name("session[password]")
+        password[0].send_keys(password)
+        time.sleep(2)    
+        submit = driver.find_element_by_xpath("//span[text()='Log in']")
+        submit.click()
+        time.sleep(1)
+        return driver
+    return login(driver)
 
 # Now get likes
 
 def get_usernames(url, text):
     driver.get(url)
     time.sleep(1)
-    element_to_hover_over = driver.find_elements_by_xpath("//*[contains(text(), '{0}')/span]".format(text))[0]
-    hover = ActionChains(driver).move_to_element(element_to_hover_over)
-    hover.click_and_hold()    
-    from selenium.webdriver.common.keys import Keys
-    hover.send_keys(Keys.END)
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    usernames = driver.execute_script('''var arr = [], l = document.links;for(var i=0; i<l.length; i++){  arr.push(l[i].href);};return arr;''')
-    print(len(usernames))
-    return usernames
+    height = driver.execute_script("return document.body.scrollHeight;")
+    collected_usernames = set()
+    for pixel in range(1, height, 20):
+        usernames = set(driver.execute_script('''var arr = [], l = document.links;for(var i=0; i<l.length; i++){  arr.push(l[i].href);};return arr;'''))
+        collected_usernames = collected_usernames.union(usernames)
+        driver.execute_script("scroll({0}, {1});".format(pixel, pixel - 1))
+    return collected_usernames
 
-def scroll_page():
-    while True:
-        last_height = driver.execute_script("return document.body.scrollHeight")
-        traffic_path = driver.find_elements_by_css_selector("a[aria-label='View Tweet activity']")
-        path.extend([traffic.get_attribute('href') for traffic in traffic_path])
-        driver.execute_script("window.scrollTo(0, {})".format(last_height+500))
-        time.sleep(3)
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if last_height == new_height:
-            break
-url = "https://twitter.com/saucony/status/1229450434000982022"
-driver.get(url)
-likes_url = "https://twitter.com/saucony/status/1229450434000982022/likes"
-retweets_url = "https://twitter.com/saucony/status/1229450434000982022/retweets"
-usernames1 = get_usernames(likes_url, "Liked by")
-usernames2 = get_usernames(retweets_url, "Retweeted by")
-print(len(usernames1))
-print(len(usernames2))
-all_usernames = usernames1 + usernames2
+def get_likes(url):
+    return get_usernames(url + "/likes", "Liked by")
 
-def getPageNumber(driver, current_page=-1):
-    
+def get_retweets(url):
+    return get_usernames(url + "/retweets", "Retweeted by")
+
+def get_data(url):
+    driver.get(url)
+    likes = get_likes(url)
+    retweets = get_retweets(url)
+    to_return = (likes, retweets)
+    print(len(to_return[0]), len(to_return[1]))
+    return to_return
+
+url = "https://twitter.com/PLAYRgg/status/1230628361984233474"
+likes, retweets = get_data(url)
         
-
-    if current_page == pageNumber:
-        time.sleep(0.0001)
-        return getPageNumber(driver, current_page)
-    return pageNumber
-
-
-#document.getElementsByTagName("a").length
-#        '''var pageNumber = document.getElementsByClassName("pagination-info").item(0).innerHTML;return pageNumber;''').replace(
-#        "Page <strong>", "").split("</strong>")[0].replace(" ", ""))
