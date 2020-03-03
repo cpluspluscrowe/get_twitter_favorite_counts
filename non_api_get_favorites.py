@@ -1,5 +1,6 @@
 
 # Need to login in order to get favorite information
+import sqlite3
 import time
 import os
 import sys
@@ -71,8 +72,6 @@ def get_data(url):
 
 
 # get tweets from the brand's page
-driver = login_to_twitter()
-url = "https://twitter.com/rishqo"
 
 # ---- There are certain signs that you are too cool for Python
 import sys
@@ -82,26 +81,33 @@ sys.setrecursionlimit(100000)
 def get_tweet_ids(url, old_height, count, collected_tweet_ids):
     if old_height == 0:
         driver.get(url)
-        time.sleep(1)
-    driver.execute_script("window.scrollBy(0,2000)")
-    time.sleep(0.3)
+        time.sleep(2)
+    driver.execute_script("window.scrollBy(0,500)")
     height = driver.execute_script("return document.body.scrollHeight;")
-    elements = driver.find_elements_by_xpath("//div[@data-testid='tweet']//a[contains(@href,'/{0}/status/')]".format(brand))
+    old_id_count = len(collected_tweet_ids)
+    # role = link
+    elements = driver.find_elements_by_xpath("//div[@data-testid='tweet']//a[@role='link']")
     for element in elements:
-        tweet_id = element.get_attribute("href").split("/")[-1:][0]
-        collected_tweet_ids.append(tweet_id)
+        try:
+            tweet_id = element.get_attribute("href").split("/")[-1:][0]
+            collected_tweet_ids.add(tweet_id)
+        except:
+            print("error getting tweet id")
     print(len(collected_tweet_ids))
-    if len(collected_tweet_ids) > 50:
-        return collected_tweet_ids
-    if height == old_height and count > 5:
-        return collected_tweet_ids
-    if height == old_height and count < 5:
+    new_id_count = len(collected_tweet_ids)
+    print("Count: {0}, old_id_count: {1}, new_id_count: {2}".format(count,old_id_count,new_id_count))
+    if count > 100 or new_id_count == 0:
+        print("Done Counting!: {0}".format(new_id_count))
+        return list(collected_tweet_ids)
+    elif old_id_count == new_id_count:
         new_count = count + 1
         return get_tweet_ids(url, height, new_count, collected_tweet_ids)
-    else:
+    elif new_id_count > old_id_count:
         return get_tweet_ids(url, height, 1, collected_tweet_ids)
+    else:
+        raise Exception("Else reached, should not happen")
+ 
 
-import sqlite3
 def create_tweet_id_table():
     conn = sqlite3.connect('./usernames.db')
     c = conn.cursor()
@@ -115,9 +121,19 @@ def insert_tweet_id(brand_id, tweet_id):
     conn.commit()
     conn.close()
 
+def delete_tweet_id(brand_id):
+    conn = sqlite3.connect('./usernames.db')
+    c = conn.cursor()
+    c.execute("delete from brands where brand = '{0}'".format(brand_id))
+    conn.commit()
+    conn.close()
+    
 def get_and_store_brand_tweet_ids(brand):
     url = "https://twitter.com/{0}".format(brand)
-    tweet_ids = get_tweet_ids(url, 0, 0, [])
+    tweet_ids = get_tweet_ids(url, 0, 0, set())
+    if len(tweet_ids) == 0:
+        delete_tweet_id(brand)
+        return
     for tweet_id in tweet_ids:
         insert_tweet_id(brand, tweet_id)
 
@@ -130,6 +146,18 @@ def get_brand_data():
     conn.close()
     return l
 
+def get_searched_twitter_pages():
+    conn = sqlite3.connect('./usernames.db')
+    cursor = conn.execute("select brandId from tweets")
+    l = []
+    for row in cursor:
+        l.append(row[0])
+    conn.close()
+    return l
+
+driver = login_to_twitter()
+already_searched = get_searched_twitter_pages()
 existing = get_brand_data()
 for brand in existing:
-    get_and_store_brand_tweet_ids(brand)
+    if not brand in already_searched:
+        get_and_store_brand_tweet_ids(brand)
