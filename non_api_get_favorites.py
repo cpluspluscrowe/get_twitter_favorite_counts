@@ -33,7 +33,7 @@ def login_to_twitter():
         time.sleep(2)
         password = driver.find_elements_by_name("session[password]")
         password[0].send_keys(login_password)
-        time.sleep(2)    
+        time.sleep(2)
         submit = driver.find_element_by_xpath("//span[text()='Log in']")
         submit.click()
         time.sleep(1)
@@ -44,7 +44,7 @@ def login_to_twitter():
 
 def get_usernames(url, text):
     driver.get(url)
-    time.sleep(1)
+    time.sleep(3)
     height = driver.execute_script("return document.body.scrollHeight;")
     collected_usernames = set()
     for pixel in range(1, height, 20):
@@ -60,11 +60,11 @@ def get_retweets(url):
     return get_usernames(url + "/retweets", "Retweeted by")
 
 def get_data(url):
-    driver.get(url)
+#    driver.get(url)
+#    time.sleep(2)
     likes = get_likes(url)
     retweets = get_retweets(url)
     to_return = (likes, retweets)
-    print(len(to_return[0]), len(to_return[1]))
     return to_return
 
 #url = "https://twitter.com/PLAYRgg/status/1230628361984233474"
@@ -156,8 +156,72 @@ def get_searched_twitter_pages():
     return l
 
 driver = login_to_twitter()
-already_searched = get_searched_twitter_pages()
-existing = get_brand_data()
-for brand in existing:
-    if not brand in already_searched:
-        get_and_store_brand_tweet_ids(brand)
+#already_searched = get_searched_twitter_pages()
+#existing = get_brand_data()
+#for brand in existing:
+#    if not brand in already_searched:
+#        get_and_store_brand_tweet_ids(brand)
+
+
+def get_tweet_ids():
+    conn = sqlite3.connect('./usernames.db')
+    cursor = conn.execute("select brandId, tweetId from tweets")
+    l = []
+    for row in cursor:
+        l.append(row)
+    conn.close()
+    return l
+
+def create_persons_table():
+    conn = sqlite3.connect('./usernames.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE users
+             (tweetId integer, username text, favorite integer, retweet integer)''')
+
+def insert_person_id(tweet_id, username, is_favorite, is_retweet):
+    conn = sqlite3.connect('./usernames.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO users(tweetId, username, favorite, retweet) VALUES ('{0}','{1}','{2}','{3}')".format(tweet_id, username, is_favorite, is_retweet))
+    conn.commit()
+    conn.close()
+
+def get_already_parsed_tweets():
+    conn = sqlite3.connect('./usernames.db')
+    cursor = conn.execute("select tweetId from users")
+    l = []
+    for row in cursor:
+        l.append(str(row[0]))
+    conn.close()
+    return l
+
+tweet_ids = get_tweet_ids()
+filtered = list(filter(lambda x: x[0] == "GigsStem", tweet_ids))
+
+extracted = get_already_parsed_tweets()
+
+for brand,tweet_id in filtered:#tweet_ids:
+    if not tweet_id.isnumeric() or tweet_id in extracted:
+        print(tweet_id in extracted)
+        continue
+    url = "https://twitter.com/{0}/status/{1}".format(brand,tweet_id)
+    likes, retweets = get_data(url)
+    print("Likes: {0}".format(likes))
+    print("Retweets: {0}".format(retweets))
+    if len(likes) == 0 and len(retweets) == 0:
+        time.sleep(2)
+    print()
+    for like in likes:
+        insert_person_id(tweet_id, like, 1, 0)
+    for retweet in retweets:
+        insert_person_id(tweet_id, retweet, 0, 1)
+    
+
+
+        
+
+#SELECT distinct tweets.brandId, users.username, media.tweetId, media.timestamp from media
+#INNER JOIN tweets on tweets.tweetId = media.tweetId
+#INNER JOIN users on users.tweetId = tweets.tweetId 
+#where media.hasText = "True" order by media.timestamp asc
+
+

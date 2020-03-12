@@ -4,11 +4,14 @@ def get_keys():
         return (ck,cv,sk,sv)
 
 consumer_key, consumer_secret, access_token, access_token_secret = get_keys()
-    
+
+import sqlite3
+from datetime import datetime
+from dateutil.parser import parse
 import tweepy
 auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
-api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True, , tweet_mode="extended")
+api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
 # Gives anything on timeline, e.g. replies
 #result = api.user_timeline("Nike",count=3)
 #brand = "Nike"
@@ -22,10 +25,9 @@ def get_post_data(tweet_id):
 
 #tweet_id_old = "1127574455494987777"
 #result = get_post_data(tweet_id_old)
-
 # The next section is about finding twitter brand pages
-
 # from http://www.opsig.org/reso/inddb/
+
 def insert_brand_data(brand_id):
     conn = sqlite3.connect('./usernames.db')
     conn.execute("INSERT INTO brands(brand) VALUES ('{0}')".format(brand_id))
@@ -46,22 +48,22 @@ def get_brand_data():
         l.append(row[0])
     conn.close()
     return l
-    
-industries = list(map(lambda x: x.split("\t")[1],
-                      open("./industries.txt","r").read().split("\n")[:-1]
-))
-existing = get_brand_data()
-for industry in industries:
-    if industry in existing:
-        continue # skip if we have already processed the industry
-    found = api.search(industry)
-    for tweet in found:
-        author = tweet.author.screen_name
-        print(author)
-        insert_brand_data(author)
-        print("processed")
 
-import sqlite3
+def insert_industries():
+    industries = list(map(lambda x: x.split("\t")[1],
+                      open("./industries.txt","r").read().split("\n")[:-1]
+    ))
+    existing = get_brand_data()
+    for industry in industries:
+        if industry in existing:
+            continue # skip if we have already processed the industry
+        found = api.search(industry)
+        for tweet in found:
+            author = tweet.author.screen_name
+            print(author)
+            insert_brand_data(author)
+            print("processed")
+
 def create_follower_table():
     conn = sqlite3.connect('./usernames.db')
     c = conn.cursor()
@@ -143,15 +145,16 @@ def does_tweet_contain_text(tweet):
     else:
         return False
 
+def created_at_to_date(tweet):
+    return tweet.created_at.timestamp()
+    
 def get_tweet_data(tweet_id):
     tweet = api.get_status(tweet_id, include_ext_alt_text = True,tweet_mode="extended")
     has_image = does_tweet_contain_image(tweet)
     has_urls = does_tweet_contain_urls(tweet)
     has_text = does_tweet_contain_text(tweet)
-    return (has_text, has_image, has_urls)
-
-# url
-#tweet.text
+    timestamp = created_at_to_date(tweet)
+    return (has_text, has_image, has_urls, timestamp)
 
 def create_media_table():
     conn = sqlite3.connect('./usernames.db')
@@ -159,10 +162,10 @@ def create_media_table():
     c.execute('''CREATE TABLE media
              (tweetId integer, hasText integer, hasImage integer, hasUrl integer)''')
 
-def insert_tweet_id(tweet_id,has_text, has_image,has_url):
+def insert_tweet_id(tweet_id, has_text, has_image, has_url, timestamp):
     conn = sqlite3.connect('./usernames.db')
     c = conn.cursor()
-    c.execute("INSERT INTO media(tweetId, hasText, hasImage, hasUrl) VALUES ('{0}','{1}','{2}','{3}')".format(tweet_id,has_text, has_image,has_url))
+    c.execute("INSERT INTO media(tweetId, hasText, hasImage, hasUrl, timestamp) VALUES ('{0}','{1}','{2}','{3}','{4}')".format(tweet_id,has_text, has_image,has_url, timestamp))
     conn.commit()
     conn.close()
 
@@ -170,15 +173,23 @@ def get_tweet_ids():
     conn = sqlite3.connect('./usernames.db')
     cursor = conn.execute("select brandId, tweetId from tweets")
     l = []
-    for tweet_id in cursor:
+    for row in cursor:
         l.append(row)
     conn.close()
     return l
 
 tweet_ids = get_tweet_ids()
 for brand, tweet_id in tweet_ids:
-    print(brand, tweet_id)
-    has_text, has_image, has_url = get_tweet_data(tweet_id)
-    insert_tweet_id(tweet_id, has_text, has_image, has_url)
-    break
+    if tweet_id.isnumeric() and len(tweet_id) > 2:
+        try:
+            print(tweet_id)
+            has_text, has_image, has_url, timestamp = get_tweet_data(tweet_id)
+            insert_tweet_id(tweet_id, has_text, has_image, has_url, timestamp)
+        except Exception as e:
+            print("Exception: {0}".format(tweet_id))
+            print(e)
+            raise e
+
+
+print("Done!")
 
