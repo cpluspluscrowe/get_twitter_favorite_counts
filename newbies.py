@@ -49,3 +49,4 @@ def fill_newbiew_db(brand):
     
 
     
+# I want type, # new users by brand

@@ -13,7 +13,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC 
 #https://twitter.com/barkbox
-
 login_password = open("./password.org").read().split("\n")[0]
 
 def login_to_twitter():
@@ -22,6 +21,7 @@ def login_to_twitter():
         # chrome_options.add_argument("--headless")
         chrome_driver_location = "/Users/ccrowe/github/extract_twitter_favorites/chromedriver"
         driver = webdriver.Chrome(chrome_driver_location, chrome_options=chrome_options)
+        driver.set_window_size(300,1000)
         return driver
     driver = setupChromeDriver()
     def login(driver):
@@ -39,7 +39,6 @@ def login_to_twitter():
         time.sleep(1)
         return driver
     return login(driver)
-
 # Now get likes
 
 def get_usernames(url, text):
@@ -162,10 +161,9 @@ driver = login_to_twitter()
 #    if not brand in already_searched:
 #        get_and_store_brand_tweet_ids(brand)
 
-
-def get_tweet_ids():
+def get_brand_tweets(brand):
     conn = sqlite3.connect('./usernames.db')
-    cursor = conn.execute("select brandId, tweetId from tweets")
+    cursor = conn.execute("select brandId, tweetId from tweets where brandId = '{0}'".format(brand))
     l = []
     for row in cursor:
         l.append(row)
@@ -194,34 +192,27 @@ def get_already_parsed_tweets():
     conn.close()
     return l
 
-tweet_ids = get_tweet_ids()
-filtered = list(filter(lambda x: x[0] == "GigsStem", tweet_ids))
-
-extracted = get_already_parsed_tweets()
-
-for brand,tweet_id in filtered:#tweet_ids:
-    if not tweet_id.isnumeric() or tweet_id in extracted:
-        print(tweet_id in extracted)
-        continue
-    url = "https://twitter.com/{0}/status/{1}".format(brand,tweet_id)
-    likes, retweets = get_data(url)
-    print("Likes: {0}".format(likes))
-    print("Retweets: {0}".format(retweets))
-    if len(likes) == 0 and len(retweets) == 0:
-        time.sleep(2)
-    print()
-    for like in likes:
-        insert_person_id(tweet_id, like, 1, 0)
-    for retweet in retweets:
-        insert_person_id(tweet_id, retweet, 0, 1)
-    
-
-
-        
+def get_retweet_favorite_usernames(brand):
+    tweet_ids = get_brand_tweets(brand)
+    extracted = get_already_parsed_tweets()
+    for brand,tweet_id in tweet_ids:
+        if not tweet_id.isnumeric() or tweet_id in extracted:
+            print(tweet_id in extracted)
+            continue
+        url = "https://twitter.com/{0}/status/{1}".format(brand,tweet_id)
+        likes, retweets = get_data(url)
+        print("Likes: {0}".format(likes))
+        print("Retweets: {0}".format(retweets))
+        if len(likes) == 0 and len(retweets) == 0:
+            time.sleep(2)
+            print()
+        for like in likes:
+            insert_person_id(tweet_id, like, 1, 0)
+        for retweet in retweets:
+            insert_person_id(tweet_id, retweet, 0, 1)
 
 #SELECT distinct tweets.brandId, users.username, media.tweetId, media.timestamp from media
 #INNER JOIN tweets on tweets.tweetId = media.tweetId
 #INNER JOIN users on users.tweetId = tweets.tweetId 
 #where media.hasText = "True" order by media.timestamp asc
-
 
